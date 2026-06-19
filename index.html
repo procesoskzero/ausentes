@@ -315,12 +315,21 @@ async function cargarAusentes() {
   const turno = `Turno ${state.turno}`;
   document.getElementById('listaAusentes').innerHTML = `<div class="loading"><div class="spinner"></div><span>Cargando...</span></div>`;
   try {
-    const desde = `${fecha}T00:00:00Z`;
-    const hasta = `${fecha}T23:59:59Z`;
+    // SharePoint guarda en UTC; las fechas se desplazan por zona horaria.
+    // Ampliamos el rango de -1 a +1 dia y luego filtramos por fecha local exacta.
+    const d = new Date(fecha + 'T12:00:00');
+    const desde = new Date(d.getTime() - 36*36e5).toISOString();
+    const hasta = new Date(d.getTime() + 36*36e5).toISOString();
     const filtro = `Sector eq '${sector.replace(/'/g,"''")}' and Turno eq '${turno}' and FechaAusencia ge datetime'${desde}' and FechaAusencia le datetime'${hasta}'`;
     const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=200`;
     const data = await spGet(url);
-    state.ausentes = data.value || [];
+    // Filtrar al dia local exacto seleccionado
+    state.ausentes = (data.value || []).filter(it => {
+      if (!it.FechaAusencia) return false;
+      const local = new Date(it.FechaAusencia);
+      const y = local.getFullYear(), m = String(local.getMonth()+1).padStart(2,'0'), dd = String(local.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}` === fecha;
+    });
     renderLista();
   } catch(e) {
     document.getElementById('listaAusentes').innerHTML = `<div class="empty"><p>Error al cargar: ${e.message}</p></div>`;
