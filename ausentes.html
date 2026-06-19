@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Control de Ausencias · KZERO</title>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+  :root {
+    --rojo:#c0392b; --rojo-dark:#962d22; --bg:#f2f2f7; --white:#fff; --text:#1c1c1e;
+    --muted:#8e8e93; --border:#e5e5ea; --success:#34c759; --warning:#ff9500; --blue:#007aff;
+    --shadow:0 1px 3px rgba(0,0,0,0.08);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:var(--bg); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--text); }
+  #app { max-width:430px; margin:0 auto; height:100vh; display:flex; flex-direction:column; background:var(--bg); position:relative; overflow:hidden; }
+
+  .header { background:var(--rojo); color:#fff; padding:0 16px; display:flex; align-items:center; justify-content:space-between; height:56px; flex-shrink:0; }
+  .header h1 { font-size:17px; font-weight:600; }
+  .header .back-btn { background:none; border:none; color:#fff; font-size:24px; cursor:pointer; padding:4px 8px 4px 0; display:none; }
+  .header .back-btn.visible { display:block; }
+  .header-date { font-size:12px; color:rgba(255,255,255,0.8); }
+
+  .screen { flex:1; overflow-y:auto; padding-bottom:80px; display:none; }
+  .screen.active { display:block; }
+
+  .bottom-nav { height:60px; background:var(--white); border-top:1px solid var(--border); display:flex; flex-shrink:0; }
+  .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--muted); font-size:10px; border:none; background:none; }
+  .nav-item.active { color:var(--rojo); }
+  .nav-item svg { width:22px; height:22px; }
+
+  #login { position:absolute; inset:0; background:var(--rojo); display:flex; align-items:center; justify-content:center; z-index:100; flex-direction:column; }
+  #login .logo-box { width:120px; height:120px; background:#fff; border-radius:24px; display:flex; align-items:center; justify-content:center; }
+  #login .logo-box span { font-size:48px; font-weight:900; color:var(--rojo); }
+  #login h2 { color:#fff; font-size:28px; font-weight:800; margin-top:16px; letter-spacing:1px; }
+  #login p { color:rgba(255,255,255,0.8); font-size:12px; margin-top:4px; text-align:center; }
+  #login button { margin-top:32px; background:#fff; color:var(--rojo); border:none; padding:14px 32px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; }
+  #login .status { color:#fff; margin-top:16px; font-size:13px; opacity:0.9; }
+
+  .home-top { background:var(--rojo); padding:16px; color:#fff; }
+  .home-top h2 { font-size:20px; font-weight:700; }
+  .home-top p { font-size:13px; opacity:0.85; margin-top:2px; }
+  .turno-toggle { display:flex; background:rgba(255,255,255,0.2); border-radius:8px; padding:3px; margin-top:12px; }
+  .turno-btn { flex:1; padding:8px; border:none; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; background:transparent; color:#fff; transition:all .2s; }
+  .turno-btn.active { background:#fff; color:var(--rojo); }
+
+  .sector-list { padding:8px 16px; }
+  .sector-item { background:var(--white); border-radius:12px; margin-bottom:10px; padding:16px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; box-shadow:var(--shadow); transition:transform .1s; }
+  .sector-item:active { transform:scale(0.98); }
+  .sector-left { display:flex; align-items:center; gap:12px; }
+  .sector-icon { width:36px; height:36px; border-radius:8px; background:var(--rojo); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .sector-name { font-size:15px; font-weight:600; }
+  .sector-count { font-size:12px; color:var(--muted); margin-top:2px; }
+  .chevron { color:var(--muted); font-size:18px; }
+
+  .list-header { background:var(--rojo); color:#fff; padding:16px; }
+  .list-header h2 { font-size:18px; font-weight:700; }
+  .list-header .stats { display:flex; gap:20px; margin-top:10px; }
+  .stat { text-align:center; }
+  .stat .num { font-size:24px; font-weight:800; }
+  .stat .lbl { font-size:11px; opacity:0.8; }
+  .date-selector { background:var(--white); border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:var(--text); font-size:14px; }
+  .date-row { display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .date-label { font-size:12px; opacity:0.8; }
+
+  .ausente-item { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--white); border-bottom:1px solid var(--border); cursor:pointer; }
+  .ausente-item:active { background:#f9f9f9; }
+  .ausente-info .nombre { font-size:14px; font-weight:500; }
+  .ausente-info .legajo { font-size:12px; color:var(--muted); }
+  .ausente-right { display:flex; align-items:center; gap:8px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--border); }
+  .dot.gestionado { background:var(--success); }
+
+  .detalle-header { background:var(--white); padding:16px; border-bottom:1px solid var(--border); }
+  .detalle-header h2 { font-size:18px; font-weight:700; }
+  .detalle-header .sub { font-size:13px; color:var(--muted); margin-top:2px; }
+  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px; }
+  .info-cell { background:var(--white); border-radius:10px; padding:12px; box-shadow:var(--shadow); }
+  .info-cell .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  .info-cell .value { font-size:15px; font-weight:600; margin-top:4px; }
+  .stats-row { display:flex; gap:12px; padding:0 16px 12px; }
+  .stat-card { flex:1; background:var(--white); border-radius:10px; padding:12px; text-align:center; box-shadow:var(--shadow); }
+  .stat-card .num { font-size:28px; font-weight:800; }
+  .stat-card .lbl { font-size:11px; color:var(--muted); margin-top:2px; }
+  .stat-card.warning .num { color:var(--warning); }
+
+  .form-section { padding:0 16px 16px; }
+  .form-label { font-size:13px; font-weight:600; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+  .form-select { width:100%; padding:12px; border:1px solid var(--border); border-radius:10px; font-size:15px; background:var(--white); color:var(--text); appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; }
+  .form-textarea { width:100%; padding:12px; border:1px solid var(--border); border-radius:10px; font-size:15px; font-family:inherit; resize:none; height:80px; color:var(--text); }
+  .form-textarea:focus, .form-select:focus { outline:none; border-color:var(--rojo); }
+
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; background:var(--white); border-radius:10px; padding:14px 16px; margin:0 16px 12px; box-shadow:var(--shadow); }
+  .toggle-label { font-size:15px; font-weight:500; }
+  .toggle { width:50px; height:28px; border-radius:14px; background:var(--border); position:relative; cursor:pointer; transition:background .2s; border:none; }
+  .toggle.on { background:var(--success); }
+  .toggle::after { content:''; width:24px; height:24px; border-radius:50%; background:#fff; position:absolute; top:2px; left:2px; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+  .toggle.on::after { transform:translateX(22px); }
+
+  .btn-guardar { width:calc(100% - 32px); margin:0 16px; padding:14px; background:var(--rojo); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; transition:background .2s; }
+  .btn-guardar:active { background:var(--rojo-dark); }
+  .btn-guardar:disabled { background:var(--border); color:var(--muted); }
+
+  .historial-item { background:var(--white); margin:8px 16px; border-radius:10px; padding:14px; box-shadow:var(--shadow); display:flex; gap:12px; }
+  .hist-icon { width:40px; height:40px; border-radius:8px; background:var(--bg); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .hist-date { font-size:13px; font-weight:600; }
+  .hist-comment { font-size:13px; color:var(--muted); margin-top:3px; }
+
+  .loading { display:flex; align-items:center; justify-content:center; padding:40px; color:var(--muted); flex-direction:column; gap:12px; }
+  .spinner { width:30px; height:30px; border:3px solid var(--border); border-top-color:var(--rojo); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#1c1c1e; color:#fff; padding:10px 20px; border-radius:20px; font-size:14px; z-index:200; opacity:0; transition:opacity .3s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .empty { text-align:center; padding:40px 20px; color:var(--muted); }
+  .empty p { font-size:15px; margin-top:8px; }
+  .section-title { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; padding:16px 16px 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="login">
+    <div class="logo-box"><span>K</span></div>
+    <h2>KZERO</h2>
+    <p>CONTROL DE AUSENCIAS<br>¡HOY Y SIEMPRE!</p>
+    <button id="loginBtn" onclick="iniciarSesion()">Iniciar sesión</button>
+    <div class="status" id="loginStatus"></div>
+  </div>
+
+  <div class="header">
+    <button class="back-btn" id="backBtn" onclick="goBack()">‹</button>
+    <h1 id="headerTitle">Control de ausencias</h1>
+    <div class="header-date" id="headerDate"></div>
+  </div>
+
+  <div class="screen active" id="screenHome">
+    <div class="home-top">
+      <h2>Seguimiento</h2>
+      <p>Seleccioná tu sector</p>
+      <div class="turno-toggle">
+        <button class="turno-btn active" onclick="setTurno(1,this)">Turno 1</button>
+        <button class="turno-btn" onclick="setTurno(2,this)">Turno 2</button>
+      </div>
+    </div>
+    <div class="sector-list" id="sectorList"></div>
+  </div>
+
+  <div class="screen" id="screenLista">
+    <div class="list-header">
+      <h2 id="listaSectorNombre"></h2>
+      <div class="date-row">
+        <span class="date-label">Cambiar fecha</span>
+        <input type="date" class="date-selector" id="fechaSelector" onchange="cargarAusentes()"/>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="num" id="countAusentes">0</div><div class="lbl">Ausentes hoy</div></div>
+        <div class="stat"><div class="num" id="countGestionados">0</div><div class="lbl">Gestionados</div></div>
+      </div>
+    </div>
+    <div id="listaAusentes"></div>
+  </div>
+
+  <div class="screen" id="screenDetalle">
+    <div class="detalle-header">
+      <h2 id="detalleNombre"></h2>
+      <div class="sub" id="detalleSub"></div>
+    </div>
+    <div class="info-grid">
+      <div class="info-cell"><div class="label">Sector</div><div class="value" id="detalleSector"></div></div>
+      <div class="info-cell"><div class="label">Turno</div><div class="value" id="detalleTurno"></div></div>
+      <div class="info-cell"><div class="label">Fecha ausencia</div><div class="value" id="detalleDate"></div></div>
+      <div class="info-cell"><div class="label">Legajo</div><div class="value" id="detalleLegajo"></div></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card warning"><div class="num" id="detalleAusMes">0</div><div class="lbl">Ausencias este mes</div></div>
+      <div class="stat-card"><div class="num" id="detalleAusSem">0</div><div class="lbl">Ausencias esta semana</div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-label">Motivo</div>
+      <select class="form-select" id="motivoSelect">
+        <option value="">Sin motivo</option>
+        <option>Reposo</option><option>Falta injustificada</option><option>Permiso</option>
+        <option>Licencia Maternidad</option><option>Licencia Paternidad</option><option>Vacaciones</option>
+        <option>No marco</option><option>Ausente pero aviso que tuvo</option><option>Otro</option>
+      </select>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label" id="toggleLabel">No gestionado</span>
+      <button class="toggle" id="gestionadoToggle" onclick="toggleGestionado()"></button>
+    </div>
+    <div class="form-section">
+      <div class="form-label">Comentario</div>
+      <textarea class="form-textarea" id="comentarioInput" placeholder="Agregar comentario..."></textarea>
+    </div>
+    <button class="btn-guardar" id="btnGuardar" onclick="guardar()">Guardar</button>
+    <div class="section-title" style="margin-top:16px">Últimas ausencias</div>
+    <div id="historialList"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="navTo('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Inicio
+    </button>
+    <button class="nav-item" onclick="navTo('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Sectores
+    </button>
+    <button class="nav-item" onclick="cerrarSesion()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Salir
+    </button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ CONFIG ============
+const msalConfig = {
+  auth: {
+    clientId: 'd4287a9b-ff12-4f4d-9bde-92accef38e68',
+    authority: 'https://login.microsoftonline.com/2e7efaf0-4b14-478f-81db-e1a57a0f4cd1',
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: 'sessionStorage' }
+};
+const loginRequest = { scopes: ['https://procesos.sharepoint.com/AllSites.Manage'] };
+const SP_BASE = 'https://procesos.sharepoint.com/sites/RRHH';
+const LIST = 'Ausentes Diarios';
+
+const SECTORES_T1 = ['PLAYA','EVISCERACION','EMPAQUE','SALA DE CORTES','SALA DE PROCESOS','LIMPIEZA PREOPERACIONAL','ADMINISTRACION DE PRODUCCION'];
+const SECTORES_T2 = ['PLAYA - NOCTURNO','EVISCERACION','EMPAQUE - NOCTURNO','SALA DE CORTES','SALA DE PROCESOS','LIMPIEZA'];
+const ICON = s => s.substring(0,2);
+
+let msalInstance = new msal.PublicClientApplication(msalConfig);
+let state = { turno:1, sectorActual:null, ausenteActual:null, ausentes:[], screens:['home'], gestionado:false, account:null };
+
+// ============ AUTH ============
+async function init() {
+  await msalInstance.initialize();
+  const resp = await msalInstance.handleRedirectPromise();
+  if (resp && resp.account) { state.account = resp.account; mostrarApp(); return; }
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) { state.account = accounts[0]; mostrarApp(); }
+}
+
+async function iniciarSesion() {
+  document.getElementById('loginStatus').textContent = 'Conectando...';
+  try { await msalInstance.loginRedirect(loginRequest); }
+  catch(e) { document.getElementById('loginStatus').textContent = 'Error: ' + e.message; }
+}
+
+function cerrarSesion() {
+  if (confirm('¿Cerrar sesión?')) msalInstance.logoutRedirect();
+}
+
+async function getToken() {
+  const req = { ...loginRequest, account: state.account };
+  try { const r = await msalInstance.acquireTokenSilent(req); return r.accessToken; }
+  catch(e) { const r = await msalInstance.acquireTokenPopup(req); return r.accessToken; }
+}
+
+function mostrarApp() {
+  document.getElementById('login').style.display = 'none';
+  const hoy = new Date();
+  document.getElementById('headerDate').textContent = hoy.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('fechaSelector').value = hoy.toISOString().split('T')[0];
+  renderSectores();
+}
+
+// ============ SHAREPOINT REST ============
+async function spGet(url) {
+  const token = await getToken();
+  const r = await fetch(url, { headers: { Authorization:`Bearer ${token}`, Accept:'application/json;odata=nometadata' } });
+  if (!r.ok) throw new Error('SP GET ' + r.status);
+  return r.json();
+}
+
+async function spUpdate(itemId, data) {
+  const token = await getToken();
+  const r = await fetch(`${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items(${itemId})`, {
+    method:'POST',
+    headers:{
+      Authorization:`Bearer ${token}`,
+      Accept:'application/json;odata=nometadata',
+      'Content-Type':'application/json;odata=nometadata',
+      'IF-MATCH':'*',
+      'X-HTTP-Method':'MERGE'
+    },
+    body: JSON.stringify(data)
+  });
+  if (!r.ok && r.status !== 204) throw new Error('SP UPDATE ' + r.status);
+}
+
+// ============ SECTORES ============
+function setTurno(t, btn) {
+  state.turno = t;
+  document.querySelectorAll('.turno-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSectores();
+}
+function renderSectores() {
+  const sectores = state.turno===1 ? SECTORES_T1 : SECTORES_T2;
+  document.getElementById('sectorList').innerHTML = sectores.map(s=>`
+    <div class="sector-item" onclick="abrirSector('${s.replace(/'/g,"\\'")}')">
+      <div class="sector-left">
+        <div class="sector-icon">${ICON(s)}</div>
+        <div><div class="sector-name">${s}</div><div class="sector-count">Turno ${state.turno}</div></div>
+      </div><div class="chevron">›</div>
+    </div>`).join('');
+}
+
+// ============ LISTA ============
+async function cargarAusentes() {
+  const fecha = document.getElementById('fechaSelector').value;
+  const sector = state.sectorActual;
+  const turno = `Turno ${state.turno}`;
+  document.getElementById('listaAusentes').innerHTML = `<div class="loading"><div class="spinner"></div><span>Cargando...</span></div>`;
+  try {
+    const filtro = `Sector eq '${sector.replace(/'/g,"''")}' and Turno eq '${turno}' and FechaAusencia eq '${fecha}'`;
+    const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=200`;
+    const data = await spGet(url);
+    state.ausentes = data.value || [];
+    renderLista();
+  } catch(e) {
+    document.getElementById('listaAusentes').innerHTML = `<div class="empty"><p>Error al cargar: ${e.message}</p></div>`;
+  }
+}
+function renderLista() {
+  const lista = state.ausentes;
+  const gest = lista.filter(a=>a.Gestionado).length;
+  document.getElementById('countAusentes').textContent = lista.length;
+  document.getElementById('countGestionados').textContent = gest;
+  if (lista.length===0) { document.getElementById('listaAusentes').innerHTML = `<div class="empty"><p>No hay ausentes para esta fecha y sector</p></div>`; return; }
+  document.getElementById('listaAusentes').innerHTML = lista.map((it,idx)=>`
+    <div class="ausente-item" onclick="abrirDetalle(${idx})">
+      <div class="ausente-info">
+        <div class="nombre">${it.Empleado||''} - ${it.NombreCompleto||it.Title||'Sin nombre'}</div>
+        <div class="legajo">${it.Motivo||'Sin motivo'}</div>
+      </div>
+      <div class="ausente-right"><div class="dot ${it.Gestionado?'gestionado':''}"></div><span style="color:var(--muted);font-size:18px">›</span></div>
+    </div>`).join('');
+}
+
+// ============ DETALLE ============
+async function abrirDetalle(idx) {
+  const it = state.ausentes[idx];
+  state.ausenteActual = it;
+  document.getElementById('detalleNombre').textContent = it.NombreCompleto||it.Title||'';
+  document.getElementById('detalleSub').textContent = `Legajo ${it.Empleado||''} · ${it.Sector||''}`;
+  document.getElementById('detalleSector').textContent = it.Sector||'';
+  document.getElementById('detalleTurno').textContent = it.Turno||'';
+  document.getElementById('detalleDate').textContent = it.FechaAusencia ? new Date(it.FechaAusencia).toLocaleDateString('es-ES') : '';
+  document.getElementById('detalleLegajo').textContent = it.Empleado||'';
+  document.getElementById('comentarioInput').value = it.Comentarios||'';
+  document.getElementById('motivoSelect').value = it.Motivo||'';
+  state.gestionado = it.Gestionado||false;
+  actualizarToggle();
+  showScreen('detalle');
+  document.getElementById('headerTitle').textContent = 'Detalle';
+  contarAusencias(it.Empleado);
+}
+
+async function contarAusencias(legajo) {
+  if (!legajo) return;
+  try {
+    const filtro = `Empleado eq '${legajo}'`;
+    const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=200`;
+    const data = await spGet(url);
+    const items = data.value||[];
+    const now = new Date();
+    const startMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const startSem = new Date(now-7*864e5).toISOString().split('T')[0];
+    document.getElementById('detalleAusMes').textContent = items.filter(i=>i.FechaAusencia>=startMes).length;
+    document.getElementById('detalleAusSem').textContent = items.filter(i=>i.FechaAusencia>=startSem).length;
+    const sorted = items.sort((a,b)=> b.FechaAusencia>a.FechaAusencia?1:-1).slice(0,5);
+    document.getElementById('historialList').innerHTML = sorted.map(i=>`
+      <div class="historial-item"><div class="hist-icon">📅</div>
+      <div><div class="hist-date">${i.FechaAusencia?new Date(i.FechaAusencia).toLocaleDateString('es-ES'):''}</div>
+      <div class="hist-comment">${i.Comentarios||'Sin comentario'}</div></div></div>`).join('');
+  } catch(e) {}
+}
+
+// ============ GUARDAR ============
+async function guardar() {
+  const btn = document.getElementById('btnGuardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    await spUpdate(state.ausenteActual.Id, {
+      Comentarios: document.getElementById('comentarioInput').value,
+      Motivo: document.getElementById('motivoSelect').value,
+      Gestionado: state.gestionado
+    });
+    showToast('Guardado correctamente');
+    await cargarAusentes();
+    goBack();
+  } catch(e) { showToast('Error al guardar'); }
+  finally { btn.disabled=false; btn.textContent='Guardar'; }
+}
+
+function toggleGestionado() { state.gestionado=!state.gestionado; actualizarToggle(); }
+function actualizarToggle() {
+  const t=document.getElementById('gestionadoToggle'), l=document.getElementById('toggleLabel');
+  if (state.gestionado){t.classList.add('on');l.textContent='Gestionado';}
+  else {t.classList.remove('on');l.textContent='No gestionado';}
+}
+
+// ============ NAV ============
+function abrirSector(s) {
+  state.sectorActual=s;
+  document.getElementById('listaSectorNombre').textContent=s;
+  document.getElementById('headerTitle').textContent=s;
+  showScreen('lista'); cargarAusentes();
+}
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('active');
+  state.screens.push(name);
+  document.getElementById('backBtn').classList.toggle('visible', state.screens.length>1);
+}
+function goBack() {
+  if (state.screens.length<=1) return;
+  state.screens.pop();
+  const prev=state.screens[state.screens.length-1];
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen'+prev.charAt(0).toUpperCase()+prev.slice(1)).classList.add('active');
+  document.getElementById('backBtn').classList.toggle('visible', state.screens.length>1);
+  if (prev==='home') document.getElementById('headerTitle').textContent='Control de ausencias';
+  else if (prev==='lista') document.getElementById('headerTitle').textContent=state.sectorActual;
+}
+function navTo(screen) {
+  state.screens=['home'];
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if (event&&event.currentTarget) event.currentTarget.classList.add('active');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screenHome').classList.add('active');
+  document.getElementById('headerTitle').textContent='Control de ausencias';
+  document.getElementById('backBtn').classList.remove('visible');
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+init();
+</script>
+</body>
+</html>
