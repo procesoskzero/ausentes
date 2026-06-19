@@ -155,7 +155,7 @@
       </div>
       <div class="stats">
         <div class="stat"><div class="num" id="countAusentes">0</div><div class="lbl">Ausentes hoy</div></div>
-        <div class="stat"><div class="num" id="countGestionados">0</div><div class="lbl">Gestionados</div></div>
+        <div class="stat"><div class="num" id="countGestionados">0</div><div class="lbl">Justificados</div></div>
       </div>
     </div>
     <div id="listaAusentes"></div>
@@ -331,24 +331,52 @@ async function cargarAusentes() {
       return `${y}-${m}-${dd}` === fecha;
     });
     renderLista();
+    // Auto-marcar como "Falta injustificada" los que no tienen comentario.
+    // Solo toca los vacios; nunca pisa uno que ya tenga texto.
+    await autoMarcarFaltas();
   } catch(e) {
     document.getElementById('listaAusentes').innerHTML = `<div class="empty"><p>Error al cargar: ${e.message}</p></div>`;
   }
 }
+
+async function autoMarcarFaltas() {
+  const pendientes = state.ausentes.filter(it => !(it.Comentarios && it.Comentarios.trim()));
+  if (pendientes.length === 0) return;
+  let cambiados = 0;
+  for (const it of pendientes) {
+    try {
+      await spUpdate(it.Id, { Comentarios: 'Falta injustificada' });
+      it.Comentarios = 'Falta injustificada';
+      cambiados++;
+    } catch(e) {}
+  }
+  if (cambiados > 0) renderLista();
+}
 function renderLista() {
   const lista = state.ausentes;
-  const gest = lista.filter(a=>a.Gestionado).length;
+  const conMotivo = lista.filter(a=>{
+    const c=(a.Comentarios||'').trim();
+    return c.length>0 && c!=='Falta injustificada' && !c.startsWith('Falta injustificada -');
+  }).length;
   document.getElementById('countAusentes').textContent = lista.length;
-  document.getElementById('countGestionados').textContent = gest;
+  document.getElementById('countGestionados').textContent = conMotivo;
   if (lista.length===0) { document.getElementById('listaAusentes').innerHTML = `<div class="empty"><p>No hay ausentes para esta fecha y sector</p></div>`; return; }
-  document.getElementById('listaAusentes').innerHTML = lista.map((it,idx)=>`
+  document.getElementById('listaAusentes').innerHTML = lista.map((it,idx)=>{
+    const com = (it.Comentarios||'').trim();
+    const esFalta = com === 'Falta injustificada' || com.startsWith('Falta injustificada -');
+    const tieneMotivo = com.length > 0;
+    let colorDot = 'var(--border)', colorTxt = 'var(--muted)';
+    if (esFalta) { colorDot = 'var(--rojo)'; colorTxt = 'var(--rojo)'; }
+    else if (tieneMotivo) { colorDot = 'var(--success)'; colorTxt = 'var(--success)'; }
+    return `
     <div class="ausente-item" onclick="abrirDetalle(${idx})">
       <div class="ausente-info">
         <div class="nombre">${it.Empleado||''} - ${it.NombreCompleto||it.Title||'Sin nombre'}</div>
-        <div class="legajo">${it.Comentarios||'Sin motivo'}</div>
+        <div class="legajo" style="color:${colorTxt}">${com||'Sin motivo'}</div>
       </div>
-      <div class="ausente-right"><div class="dot ${it.Gestionado?'gestionado':''}"></div><span style="color:var(--muted);font-size:18px">›</span></div>
-    </div>`).join('');
+      <div class="ausente-right"><div class="dot" style="background:${colorDot}"></div><span style="color:var(--muted);font-size:18px">›</span></div>
+    </div>`;
+  }).join('');
 }
 
 // ============ DETALLE ============
