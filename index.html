@@ -24,6 +24,31 @@
   .screen { flex:1; overflow-y:auto; padding-bottom:80px; display:none; }
   .screen.active { display:block; }
 
+  /* ===== Vista escritorio: dos columnas desde 900px ===== */
+  @media (min-width: 900px) {
+    #app { max-width:1100px; height:100vh; }
+    #app.modo-inicio #screenHome { display:block; }
+    #app.modo-inicio .panes { display:none; }
+    #app.modo-inicio .sector-list {
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;
+    }
+    #app.modo-inicio .sector-item { margin-bottom:0; }
+    #app.modo-trabajo #screenHome { display:none; }
+    #app.modo-trabajo .panes { display:flex; flex:1; overflow:hidden; }
+    #app.modo-trabajo #screenLista {
+      display:block !important; flex:0 0 380px; border-right:1px solid var(--border); overflow-y:auto;
+    }
+    #app.modo-trabajo #screenDetalle {
+      display:block !important; flex:1; overflow-y:auto;
+    }
+    #app.modo-trabajo .back-btn { display:none !important; }
+    #app.detalle-cerrado #detalleContenido { display:none; }
+    #app.detalle-cerrado .detalle-vacio { display:flex; align-items:center; justify-content:center; height:100%; color:var(--muted); font-size:15px; padding:40px; text-align:center; }
+  }
+  .panes { display:contents; }
+  .detalle-vacio { display:none; }
+  #detalleContenido { display:block; }
+
   .bottom-nav { height:60px; background:var(--white); border-top:1px solid var(--border); display:flex; flex-shrink:0; }
   .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--muted); font-size:10px; border:none; background:none; }
   .nav-item.active { color:var(--rojo); }
@@ -146,6 +171,7 @@
     <div class="sector-list" id="sectorList"></div>
   </div>
 
+  <div class="panes">
   <div class="screen" id="screenLista">
     <div class="list-header">
       <h2 id="listaSectorNombre"></h2>
@@ -162,6 +188,8 @@
   </div>
 
   <div class="screen" id="screenDetalle">
+    <div class="detalle-vacio" id="detalleVacio">Seleccioná un ausente de la lista para ver el detalle</div>
+    <div id="detalleContenido">
     <div class="detalle-header">
       <h2 id="detalleNombre"></h2>
       <div class="sub" id="detalleSub"></div>
@@ -196,6 +224,8 @@
     <button class="btn-guardar" id="btnGuardar" onclick="guardar()">Guardar</button>
     <div class="section-title" style="margin-top:16px">Últimas ausencias</div>
     <div id="historialList"></div>
+    </div>
+  </div>
   </div>
 
   <div class="bottom-nav">
@@ -263,6 +293,7 @@ function mostrarApp() {
   const hoy = new Date();
   document.getElementById('headerDate').textContent = hoy.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('fechaSelector').value = hoy.toISOString().split('T')[0];
+  setModo('inicio');
   renderSectores();
 }
 
@@ -401,8 +432,15 @@ async function abrirDetalle(idx) {
   document.getElementById('motivoSelect').value = motivoDetectado || (com ? '' : 'Falta injustificada');
   state.gestionado = it.Gestionado||false;
   actualizarToggle();
-  showScreen('detalle');
-  document.getElementById('headerTitle').textContent = 'Detalle';
+  document.getElementById('app').classList.remove('detalle-cerrado');
+  const esEscritorio = window.matchMedia('(min-width: 900px)').matches;
+  if (esEscritorio) {
+    // En escritorio el detalle ya esta visible al lado; solo resaltamos
+    document.getElementById('screenDetalle').scrollTop = 0;
+  } else {
+    showScreen('detalle');
+    document.getElementById('headerTitle').textContent = 'Detalle';
+  }
   contarAusencias(it.Empleado);
 }
 
@@ -443,7 +481,12 @@ async function guardar() {
     });
     showToast('Guardado correctamente');
     await cargarAusentes();
-    goBack();
+    const esEscritorio = window.matchMedia('(min-width: 900px)').matches;
+    if (esEscritorio) {
+      document.getElementById('app').classList.add('detalle-cerrado');
+    } else {
+      goBack();
+    }
   } catch(e) { showToast('Error al guardar'); }
   finally { btn.disabled=false; btn.textContent='Guardar'; }
 }
@@ -456,10 +499,18 @@ function actualizarToggle() {
 }
 
 // ============ NAV ============
+function setModo(modo) {
+  // modo: 'inicio' o 'trabajo' — solo afecta vista escritorio (>=900px)
+  const app = document.getElementById('app');
+  app.classList.toggle('modo-inicio', modo==='inicio');
+  app.classList.toggle('modo-trabajo', modo==='trabajo');
+}
 function abrirSector(s) {
   state.sectorActual=s;
   document.getElementById('listaSectorNombre').textContent=s;
   document.getElementById('headerTitle').textContent=s;
+  setModo('trabajo');
+  document.getElementById('app').classList.add('detalle-cerrado');
   showScreen('lista'); cargarAusentes();
 }
 function showScreen(name) {
@@ -475,7 +526,7 @@ function goBack() {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen'+prev.charAt(0).toUpperCase()+prev.slice(1)).classList.add('active');
   document.getElementById('backBtn').classList.toggle('visible', state.screens.length>1);
-  if (prev==='home') document.getElementById('headerTitle').textContent='Control de ausencias';
+  if (prev==='home') { document.getElementById('headerTitle').textContent='Control de ausencias'; setModo('inicio'); }
   else if (prev==='lista') document.getElementById('headerTitle').textContent=state.sectorActual;
 }
 function navTo(screen) {
@@ -486,6 +537,7 @@ function navTo(screen) {
   document.getElementById('screenHome').classList.add('active');
   document.getElementById('headerTitle').textContent='Control de ausencias';
   document.getElementById('backBtn').classList.remove('visible');
+  setModo('inicio');
 }
 
 function showToast(msg) {
