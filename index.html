@@ -362,7 +362,7 @@ async function abrirDetalle(idx) {
   document.getElementById('detalleDate').textContent = it.FechaAusencia ? new Date(it.FechaAusencia).toLocaleDateString('es-ES') : '';
   document.getElementById('detalleLegajo').textContent = it.Empleado||'';
   document.getElementById('comentarioInput').value = it.Comentarios||'';
-  document.getElementById('motivoSelect').value = it.Motivo||'';
+  document.getElementById('motivoSelect').value = it.Motivo || 'Falta injustificada';
   state.gestionado = it.Gestionado||false;
   actualizarToggle();
   showScreen('detalle');
