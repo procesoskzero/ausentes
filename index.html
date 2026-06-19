@@ -190,8 +190,8 @@
       <button class="toggle" id="gestionadoToggle" onclick="toggleGestionado()"></button>
     </div>
     <div class="form-section">
-      <div class="form-label">Comentario</div>
-      <textarea class="form-textarea" id="comentarioInput" placeholder="Agregar comentario..."></textarea>
+      <div class="form-label">Nota adicional (opcional)</div>
+      <textarea class="form-textarea" id="comentarioInput" placeholder="Detalle adicional..."></textarea>
     </div>
     <button class="btn-guardar" id="btnGuardar" onclick="guardar()">Guardar</button>
     <div class="section-title" style="margin-top:16px">Últimas ausencias</div>
@@ -345,7 +345,7 @@ function renderLista() {
     <div class="ausente-item" onclick="abrirDetalle(${idx})">
       <div class="ausente-info">
         <div class="nombre">${it.Empleado||''} - ${it.NombreCompleto||it.Title||'Sin nombre'}</div>
-        <div class="legajo">${it.Motivo||'Sin motivo'}</div>
+        <div class="legajo">${it.Comentarios||'Sin motivo'}</div>
       </div>
       <div class="ausente-right"><div class="dot ${it.Gestionado?'gestionado':''}"></div><span style="color:var(--muted);font-size:18px">›</span></div>
     </div>`).join('');
@@ -361,8 +361,16 @@ async function abrirDetalle(idx) {
   document.getElementById('detalleTurno').textContent = it.Turno||'';
   document.getElementById('detalleDate').textContent = it.FechaAusencia ? new Date(it.FechaAusencia).toLocaleDateString('es-ES') : '';
   document.getElementById('detalleLegajo').textContent = it.Empleado||'';
-  document.getElementById('comentarioInput').value = it.Comentarios||'';
-  document.getElementById('motivoSelect').value = it.Motivo || 'Falta injustificada';
+  // En SharePoint todo se guarda en Comentarios. Intentamos separar motivo de nota.
+  const MOTIVOS = ['Reposo','Falta injustificada','Permiso','Licencia Maternidad','Licencia Paternidad','Vacaciones','No marco','Ausente pero aviso que tuvo','Otro'];
+  const com = (it.Comentarios||'').trim();
+  let motivoDetectado = '', notaDetectada = com;
+  for (const m of MOTIVOS) {
+    if (com === m) { motivoDetectado = m; notaDetectada = ''; break; }
+    if (com.startsWith(m + ' - ')) { motivoDetectado = m; notaDetectada = com.slice(m.length + 3); break; }
+  }
+  document.getElementById('comentarioInput').value = notaDetectada;
+  document.getElementById('motivoSelect').value = motivoDetectado || (com ? '' : 'Falta injustificada');
   state.gestionado = it.Gestionado||false;
   actualizarToggle();
   showScreen('detalle');
@@ -395,9 +403,14 @@ async function guardar() {
   const btn = document.getElementById('btnGuardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
+    const motivo = document.getElementById('motivoSelect').value;
+    const nota = document.getElementById('comentarioInput').value.trim();
+    let comentarioFinal = '';
+    if (motivo && nota) comentarioFinal = `${motivo} - ${nota}`;
+    else if (motivo) comentarioFinal = motivo;
+    else comentarioFinal = nota;
     await spUpdate(state.ausenteActual.Id, {
-      Comentarios: document.getElementById('comentarioInput').value,
-      Motivo: document.getElementById('motivoSelect').value,
+      Comentarios: comentarioFinal,
       Gestionado: state.gestionado
     });
     showToast('Guardado correctamente');
