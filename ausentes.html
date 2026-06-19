@@ -218,7 +218,7 @@ const msalConfig = {
   auth: {
     clientId: 'd4287a9b-ff12-4f4d-9bde-92accef38e68',
     authority: 'https://login.microsoftonline.com/2e7efaf0-4b14-478f-81db-e1a57a0f4cd1',
-    redirectUri: window.location.origin + window.location.pathname
+    redirectUri: 'https://procesoskzero.github.io/ausentes/'
   },
   cache: { cacheLocation: 'sessionStorage' }
 };
@@ -315,7 +315,9 @@ async function cargarAusentes() {
   const turno = `Turno ${state.turno}`;
   document.getElementById('listaAusentes').innerHTML = `<div class="loading"><div class="spinner"></div><span>Cargando...</span></div>`;
   try {
-    const filtro = `Sector eq '${sector.replace(/'/g,"''")}' and Turno eq '${turno}' and FechaAusencia eq '${fecha}'`;
+    const desde = `${fecha}T00:00:00Z`;
+    const hasta = `${fecha}T23:59:59Z`;
+    const filtro = `Sector eq '${sector.replace(/'/g,"''")}' and Turno eq '${turno}' and FechaAusencia ge datetime'${desde}' and FechaAusencia le datetime'${hasta}'`;
     const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=200`;
     const data = await spGet(url);
     state.ausentes = data.value || [];
