@@ -159,7 +159,7 @@
   <div class="header">
     <button class="back-btn" id="backBtn" onclick="goBack()">‹</button>
     <div class="logo-k-header">K</div>
-    <h1 id="headerTitle">Control de ausencias</h1>
+    <h1 id="headerTitle">KZERO</h1>
     <div class="header-date" id="headerDate"></div>
   </div>
 
@@ -444,7 +444,6 @@ async function abrirDetalle(idx) {
     document.getElementById('screenDetalle').scrollTop = 0;
   } else {
     showScreen('detalle');
-    document.getElementById('headerTitle').textContent = 'Detalle';
   }
   contarAusencias(it.Empleado);
 }
@@ -522,7 +521,6 @@ function setModo(modo) {
 function abrirSector(s) {
   state.sectorActual=s;
   document.getElementById('listaSectorNombre').textContent=s;
-  document.getElementById('headerTitle').textContent=s;
   setModo('trabajo');
   document.getElementById('app').classList.add('detalle-cerrado');
   showScreen('lista'); cargarAusentes();
@@ -540,8 +538,7 @@ function goBack() {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen'+prev.charAt(0).toUpperCase()+prev.slice(1)).classList.add('active');
   document.getElementById('backBtn').classList.toggle('visible', state.screens.length>1);
-  if (prev==='home') { document.getElementById('headerTitle').textContent='Control de ausencias'; setModo('inicio'); }
-  else if (prev==='lista') document.getElementById('headerTitle').textContent=state.sectorActual;
+  if (prev==='home') { setModo('inicio'); }
 }
 function navTo(screen) {
   state.screens=['home'];
@@ -549,7 +546,6 @@ function navTo(screen) {
   if (event&&event.currentTarget) event.currentTarget.classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screenHome').classList.add('active');
-  document.getElementById('headerTitle').textContent='Control de ausencias';
   document.getElementById('backBtn').classList.remove('visible');
   setModo('inicio');
 }
