@@ -215,7 +215,7 @@
         <option value="">Sin motivo</option>
         <option>Reposo</option><option>Falta injustificada</option><option>Permiso</option>
         <option>Licencia Maternidad</option><option>Licencia Paternidad</option><option>Vacaciones</option>
-        <option>No marco</option><option>Ausente pero aviso que tuvo</option><option>Otro</option>
+        <option>No marco</option><option>Otro</option>
       </select>
     </div>
     <div class="toggle-row">
@@ -426,7 +426,7 @@ async function abrirDetalle(idx) {
   document.getElementById('detalleDate').textContent = it.FechaAusencia ? new Date(it.FechaAusencia).toLocaleDateString('es-ES') : '';
   document.getElementById('detalleLegajo').textContent = it.Empleado||'';
   // En SharePoint todo se guarda en Comentarios. Intentamos separar motivo de nota.
-  const MOTIVOS = ['Reposo','Falta injustificada','Permiso','Licencia Maternidad','Licencia Paternidad','Vacaciones','No marco','Ausente pero aviso que tuvo','Otro'];
+  const MOTIVOS = ['Reposo','Falta injustificada','Permiso','Licencia Maternidad','Licencia Paternidad','Vacaciones','No marco','Otro'];
   const com = (it.Comentarios||'').trim();
   let motivoDetectado = '', notaDetectada = com;
   for (const m of MOTIVOS) {
