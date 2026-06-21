@@ -448,18 +448,27 @@ async function contarAusencias(legajo) {
   if (!legajo) return;
   try {
     const filtro = `Empleado eq '${legajo}'`;
-    const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=200`;
+    const url = `${SP_BASE}/_api/web/lists/getbytitle('${LIST}')/items?$filter=${encodeURIComponent(filtro)}&$top=500`;
     const data = await spGet(url);
     const items = data.value||[];
+    // Convertir cada FechaAusencia a fecha local (YYYY-MM-DD) corrigiendo zona horaria
+    const fechaLocal = (iso) => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    };
     const now = new Date();
-    const startMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const startSem = new Date(now-7*864e5).toISOString().split('T')[0];
-    document.getElementById('detalleAusMes').textContent = items.filter(i=>i.FechaAusencia>=startMes).length;
-    document.getElementById('detalleAusSem').textContent = items.filter(i=>i.FechaAusencia>=startSem).length;
-    const sorted = items.sort((a,b)=> b.FechaAusencia>a.FechaAusencia?1:-1).slice(0,5);
+    const y=now.getFullYear(), mes=now.getMonth();
+    const inicioMes = `${y}-${String(mes+1).padStart(2,'0')}-01`;
+    const inicioSem = (()=>{ const s=new Date(now); s.setDate(s.getDate()-7); const yy=s.getFullYear(),mm=String(s.getMonth()+1).padStart(2,'0'),dd=String(s.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; })();
+    const fechas = items.map(i=>fechaLocal(i.FechaAusencia)).filter(Boolean);
+    document.getElementById('detalleAusMes').textContent = fechas.filter(f=>f>=inicioMes).length;
+    document.getElementById('detalleAusSem').textContent = fechas.filter(f=>f>=inicioSem).length;
+    const sorted = items.filter(i=>i.FechaAusencia).sort((a,b)=> new Date(b.FechaAusencia)-new Date(a.FechaAusencia)).slice(0,5);
     document.getElementById('historialList').innerHTML = sorted.map(i=>`
       <div class="historial-item"><div class="hist-icon">📅</div>
-      <div><div class="hist-date">${i.FechaAusencia?new Date(i.FechaAusencia).toLocaleDateString('es-ES'):''}</div>
+      <div><div class="hist-date">${fechaLocal(i.FechaAusencia)?new Date(i.FechaAusencia).toLocaleDateString('es-ES'):''}</div>
       <div class="hist-comment">${i.Comentarios||'Sin comentario'}</div></div></div>`).join('');
   } catch(e) {}
 }
